@@ -1,0 +1,24 @@
+---
+description: Go 1.25 HTTP API guidance for when this gateway grows an HTTP layer
+globs: "**/*.go"
+alwaysApply: false
+---
+
+# Go HTTP API Guidance
+
+Target Go version: **1.25** unless `go.mod` says otherwise. There is **no HTTP layer yet**; when one is
+added, use **Gin** (the framework of the sibling VNeID service) unless the owner chooses otherwise.
+
+## Handler behavior
+
+- Keep handlers thin: bind input, call the service through its interface, map result to HTTP. No business logic in `handler`.
+- Internal API responses use one envelope for success and error: `{"code","message","data"}`; `code` is `"OK"`
+  or a `model.Err*` value, `data` is `null` on error. The handler owns the `model.Err*` → HTTP status map.
+- Validate request shape and required fields for untrusted input; keep validation proportional to risk on trusted internal APIs.
+- Do not leak internal errors, credentials or investor data in client-facing responses.
+- Preserve existing API contracts unless the user explicitly approves a breaking change.
+
+## Middleware and operations
+
+- Add middleware only for cross-cutting behavior needed now: recovery, request ID, logging, authentication.
+- Include focused handler tests for status code, response body, and error mapping when behavior changes.

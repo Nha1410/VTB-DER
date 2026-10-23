@@ -1,0 +1,50 @@
+---
+description: Practical Go backend defaults that favor existing project patterns over ceremony
+alwaysApply: true
+---
+
+# Go Backend Defaults
+
+Use these as defaults, not as a checklist to force into every change.
+
+## Core habits
+
+- Match the existing package layout, naming, imports, and dependency style before introducing new conventions.
+- Keep changes small and local to the request; avoid unrelated refactors and architecture rewrites.
+- This repo is clean architecture: respect the layer boundaries, but do NOT add new layers or abstractions for their own sake. Introduce an interface only when a second implementation exists or a test needs it.
+- Use constructor-based dependency injection for real dependencies; avoid globals for mutable state, clients, and config. Wiring happens only at the entry point (`cmd/...`/`internal/server`, once one exists).
+- Every function/method (and interface method) names BOTH its parameters AND its return values (named parameters + named returns), especially with multiple returns - e.g. `(fin []byte, err error)`. Names must convey meaning (`out`, `info`, `body`, `cause`), not vague `r`/`s`/`x`.
+- Propagate `context.Context` through I/O, external calls, and request-scoped work.
+- Return errors explicitly and wrap with `fmt.Errorf("context: %w", err)` when adding useful context.
+- Close resources with `defer` and make goroutine cancellation explicit when goroutines can outlive the caller.
+
+## Layout of this repo
+
+Single standalone Go module `github.com/Nha1410/VTB-DER` (Go 1.25). Dependencies point inward only.
+
+| Package | May import | Must not import |
+|---|---|---|
+| `internal/model` | stdlib, `constant` | anything else in the repo |
+| `internal/constant` | stdlib | anything else in the repo |
+| `internal/common/*` | stdlib + third-party | `model`, `service`, `handler` |
+| `internal/service` | `model`, `constant`, `common/*` | `handler`, `repository`, `client`, `config` |
+| `internal/repository`, `internal/client/*` | `model`, `constant`, `service`, `common/*` | `handler` |
+| `internal/handler/*`, `internal/middleware` | `service`, `model`, `constant`, `common/*` | `repository`, `client` |
+| entry point (`cmd/*`, `internal/server`) | everything - the ONLY place wiring happens | - |
+
+- `service` knows nothing about transports; errors leaving it are `*model.CustomError`.
+- Import prefix is `github.com/Nha1410/VTB-DER/...`.
+- `common/iso15022` is pure technique (charset + Vietnamese conversion); it must not learn about MT messages.
+
+## Reliability and security
+
+- Validate and sanitize data at trust boundaries: HTTP input, files in the GateWay Client `receive` folder, config.
+- Add timeouts for external calls. Add retries, circuit breakers, auth, or rate limiting only when the failure mode or service boundary requires it, or when explicitly requested.
+- Investor identity and credentials never appear in logs above Debug or in error messages returned to callers.
+- Prefer standard library and existing dependencies. Add a new dependency only when it removes meaningful complexity.
+
+## Tooling
+
+- Run focused tests for changed packages, then `go test ./...` before claiming completion.
+- Run `go vet ./...` (and `golangci-lint run ./...` where installed - configured in `.golangci.yml`).
+- Keep comments useful: explain non-obvious decisions, not what the code already says.

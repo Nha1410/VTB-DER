@@ -1,0 +1,20 @@
+---
+description: Go test conventions for changed *_test.go files
+globs: "**/*_test.go"
+alwaysApply: false
+---
+
+# Go Testing
+
+- Prefer table-driven tests when multiple cases share setup and assertions.
+- Use `t.Run` with descriptive case names.
+- Use `t.Parallel()` only when tests do not share mutable state, environment variables, ports, or global framework mode.
+- Mock external systems through small interfaces or `httptest.Server`; avoid real network calls and real folders in unit tests (use `t.TempDir()`).
+- Test `service` with plain inputs and the exact wire bytes expected - compare against the examples in `docs/` where one exists.
+- Anything derived from a spec table (e.g. Vietnamese conversion) gets a test that reads the transcribed table in `docs/` and compares row by row, so the code cannot drift from the spec.
+- Never commit real BICCODEs of other institutions, account numbers, investor data, certificates or tokens; fixtures are made up.
+- Assert behavior and contracts, not implementation details.
+- Keep fixtures small and local unless reuse is meaningful.
+- Test names: `Test{Symbol}_{Scenario}`; variables `inputX`, `wantX`, `gotX`.
+- For bug fixes, add or adjust a test that would fail before the fix when practical.
+- Run the changed package tests first, then `go test ./...` before claiming completion.

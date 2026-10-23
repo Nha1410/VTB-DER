@@ -1,0 +1,54 @@
+---
+description: Hard rules from Phụ lục 06 (QĐ 115/QĐ-VSD) - apply whenever building, validating or parsing FIN messages for VSD
+alwaysApply: true
+---
+
+# VSD FIN integration rules
+
+Source of truth: `docs/Phu-luc-06.docx`, transcribed in `docs/` (start at `docs/README.md`).
+These are contract requirements, not preferences - violating them gets the message NAK'd by VSD.
+
+## What this service is
+
+A gateway that turns domain requests into FIN messages for VSD (member → VSD) and decodes what comes
+back. It writes to / reads from the **GateWay Client** folders; the GateWay Client itself handles the
+session login (username/password + BKAV token) and the **session key that encrypts the transport**.
+Do not add a second encryption layer unless the owner asks - the spec defines none for the message body.
+
+## Frame (member → VSD) - `docs/02-cau-truc-dien-fin.md`
+
+- Four blocks in order: `{1:}` basic header, `{2:}` application header, `{4:}` text, `{5:}` trailer.
+- Block 1: `{1:F01<BIC8>AXXX<session:4><ISN:6>}`. The **ISN must be unique within a session**.
+- Block 2: `{2:I<MT:3><receiver BIC8>XXXX<priority>[<monitoring>][<obsolescence>]}`.
+  Priority `U` → monitoring `1` or `3`; priority `N` → monitoring `2` or none; obsolescence only `020`.
+- Block 5: copy the sample trailer `{5:{MAC:00000000}{CHK:F1DBCA886BBF}{TNG:}}`; the spec fixes no content.
+- BICCODE of a member: `VSD` + 3-letter short name + `XX` (long names spill into the `X`s). VSD/CCP is `VSDSVN06`.
+- Inbound (VSD → member) differs in blocks 1 and 2 (`{2:O...}`); ACK/NAK use service id `21` with tags
+  `177` / `451` (0 ACK, 1 NAK) / `405` (code from `docs/04-bang-ma-loi.md`).
+
+## Characters - `docs/03-ky-tu-va-chuyen-doi-tieng-viet.md`
+
+- Valid directly: `a-z A-Z 0-9 / - ? : ( ) . , ' +`, space, CR/LF. Nothing else.
+- Everything else, including every Vietnamese letter and `& # % \` and `/`, is converted by the **sender**
+  to `?code?` (telex, `docs/05-bang-chuyen-doi-ky-tu.md`) and reversed by the **receiver**.
+- The length limit of a field (`16x`, `35x`, `4*35x`) is counted **after** conversion.
+- Convert **field values only**, never the structure of a line (`:`, `//`).
+- `@` in an e-mail is written `(at)`. A literal `?` cannot be carried (it would read back as a marker).
+- Block 5 and the frame never contain `{` `}` inside text - the charset forbids them; keep it that way.
+
+## Business messages - `docs/nghiep-vu/`
+
+- Every request carries a reference that VSD checks for **uniqueness** (tag `20`, or `20C::SEME`); replies
+  link back with `20C::RELA` (MT598/MT5xx) or tag `21` (MT900/MT910).
+- MT598 is routed by Sub-Message Type (tag `12`) and `77E`; the table is `docs/06-danh-muc-dien-mt.md`.
+- Dates are `YYYYMMDD` (`:4!c//8!n`); amounts in MT900/MT910 are `6!n3!a15d`.
+- Money-account suffixes (`BICCODE.C/.P/.R/.S`) are in `docs/00-tong-quan-va-thuat-ngu.md`.
+- The spec has known ambiguities - read `docs/07-luu-y-va-diem-chua-nhat-quan.md` before implementing a
+  message and **ask** rather than guess when it lists the point as open.
+
+## Data handling (default until the owner decides otherwise)
+
+- Investor identity (name, ID number, address, phone, e-mail, account numbers) is personal data: log it at
+  Debug only, never in an error message returned to a caller.
+- Never commit certificates, tokens, passwords or the GateWay Client credentials. Test fixtures use
+  made-up BICCODEs and account numbers.

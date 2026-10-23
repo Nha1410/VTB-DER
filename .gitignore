@@ -1,0 +1,15 @@
+.vscode/
+.idea/
+
+# Build output of `go build -o ... ./cmd/...`
+*.exe
+
+# Env files; keep committed templates only.
+**/*.env
+
+# Secret material: certificates, BKAV token exports, GateWay Client credentials.
+secrets/
+*.pem
+*.p12
+*.pfx
+!**/*.pem.example
